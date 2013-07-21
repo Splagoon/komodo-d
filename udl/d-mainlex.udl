@@ -1,0 +1,148 @@
+# UDL lexer for D.
+#
+# Note: UDL is a state machine and it uses regular expressions to move between
+#       the different language states.
+#
+
+language D
+
+################ Boilerplate ################
+
+# Boilerplate - need to start with family set to markup and IN_M_DEFAULT state,
+# we'll later perform a null-transition change to get into the SSL state.
+family markup
+initial IN_M_DEFAULT
+# Null-transition to get into SSL state
+state IN_M_DEFAULT:
+/./ : redo, => IN_SSL_DEFAULT
+
+################ Language Start ################
+
+family ssl # server side language
+
+# Specify the min and max styles we'll be referring to.
+start_style SSL_DEFAULT
+end_style SSL_VARIABLE
+
+# If the language has keywords, specify which style needs to be transformed
+keyword_style SSL_IDENTIFIER => SSL_WORD
+keywords [
+        # Keywords
+        "abstract", "alias", "align", "asm", "assert", "auto",
+        "body", "bool", "break", "byte",
+        "case", "cast", "catch", "cdouble", "cent", "cfloat", "char", "class", "const", "continue", "creal",
+        "dchar", "debug", "default", "delegate", "delete", "deprecated", "do", "double", # 'delete' is deprecated
+        "else", "enum", "export", "extern",
+        "false", "final", "finally", "float", "for", "foreach", "foreach_reverse", "function",
+        "goto",
+        "idouble", "if", "ifloat", "immutable", "import", "in", "inout", "int", "interface", "invariant", "ireal", "is",
+        "lazy", "long",
+        "macro", "mixin", "module",
+        "new", "nothrow", "null",
+        "out", "override",
+        "package", "pragma", "private", "protected", "public", "pure",
+        "real", "ref", "return",
+        "scope", "shared", "short", "static", "struct", "super", "switch", "synchronized",
+        "template", "this", "throw", "true", "try", "typedef", "typeid", "typeof", # 'typedef' is deprecated
+        "ubyte", "ucent", "uint", "ulong", "union", "unittest", "ushort",
+        "version", "void", "volatile", # 'volatile' is deprecated
+        "wchar", "while", "with",
+        
+        "__FILE__", "__MODULE__", "__LINE__", "__FUNCTION__", "__PRETTY_FUNCTION__",
+        "__gshared", "__traits", "__vector", "__parameters",
+        
+        #not technically keywords
+        "string", "wstring", "dstring", "size_t", "ptrdiff_t"
+        ]
+
+# Set the basic patterns we'll be using for styling transitions.
+# For most programming languages, names cannot start with a number, but they
+# often allow a number after the first character - e.g. "bar21a"
+pattern FIRSTNAMECHAR = '_a-zA-Z\x80-\xff' # names (identifier, keyword, variable...) only can start with these chars
+pattern NAMECHAR = '$FIRSTNAMECHAR\d'      # rest of the name, after the first char
+pattern WS = '\s\t\r\n'                    # whitespace
+pattern OP = '!#%&\(\)\*\+,-\.\/:;<=>\?@\[\]\^\{\}~|'  # operator characters - escaping special regex values
+
+################ Default Style ################
+
+# Define what happens when in default (initial) state. This is where we set up
+# the transitions to other states.
+state IN_SSL_DEFAULT:
+
+# ----------- Entering Comments ---------- #
+
+# C-style one line comments
+'//' : paint(upto, SSL_DEFAULT),  => IN_SSL_COMMENT_TO_EOL
+
+# C-style block comments
+'/*' : paint(upto, SSL_DEFAULT), => IN_SSL_COMMENT_C_BLOCK
+
+# D-style nested comments
+'/+' : paint(upto, SSL_DEFAULT), => IN_SSL_COMMENT_D_NESTED
+
+# ----------- Entering Whitespace ---------- #
+
+# Just stay in whatever style we currently are using.
+/[$WS]+/  : #stay
+
+# ----------- Entering Strings ---------- #
+
+'r"' : paint(upto, SSL_DEFAULT), => IN_SSL_DXSTRING
+/[qx]?"/ : paint(upto, SSL_DEFAULT), => IN_SSL_DSTRING
+'\'' : paint(upto, SSL_DEFAULT), => IN_SSL_SSTRING
+'`' : paint(upto, SSL_DEFAULT), => IN_SSL_XSTRING
+
+# ----------- Entering Numbers ---------- #
+
+# Go process a number, try to do it in regexes octal and hex first.
+/0[Xx][_0-9a-fA-F]+/ : paint(upto, SSL_DEFAULT), paint(include, SSL_NUMBER)    # Hex numbers
+/[-+]?0[_0-7]*/ : paint(upto, SSL_DEFAULT), paint(include, SSL_NUMBER)                      # Octal numbers
+/[-+]?[1-9][_0-9]*[fFLiuU]*/ : paint(upto, SSL_DEFAULT), paint(include, SSL_NUMBER)       # Regular numbers
+
+# ----------- Entering Identifiers ---------- #
+
+/[$FIRSTNAMECHAR][$NAMECHAR]*/ : paint(upto, SSL_DEFAULT), paint(include, SSL_IDENTIFIER)
+
+# ----------- Entering Operators ---------- #
+
+/[$OP]/ : paint(upto, SSL_DEFAULT), paint(include, SSL_OPERATOR)
+
+
+################ In Comments - determines how we exit a comment ################
+
+state IN_SSL_COMMENT_TO_EOL: 
+/[\r\n]/ : paint(upto, SSL_COMMENT), => IN_SSL_DEFAULT  # back to default state
+
+state IN_SSL_COMMENT_C_BLOCK: 
+'*/' : paint(include, SSL_COMMENTBLOCK), => IN_SSL_DEFAULT  # back to default state
+
+state IN_SSL_COMMENT_D_NESTED: # TODO: support actual nesting
+'+/' : paint(include, SSL_COMMENTBLOCK), => IN_SSL_DEFAULT  # back to default state
+
+################ In Strings - determines how we exit a string ################
+
+state IN_SSL_DXSTRING:
+/"[cdw]?/ : paint(include, SSL_STRING), => IN_SSL_DEFAULT
+
+state IN_SSL_DSTRING:
+/"[cdw]?/ : paint(include, SSL_STRING), => IN_SSL_DEFAULT  # back to default state
+/\\./ : #stay, anything escaped means it's still a string
+
+state IN_SSL_SSTRING:
+'\'' : paint(include, SSL_STRING), => IN_SSL_DEFAULT  # back to default state
+/\\./ : #stay, anything escaped means it's still a string
+
+state IN_SSL_XSTRING:
+'`' : paint(include, SSL_STRING), => IN_SSL_DEFAULT  # back to default state
+
+################ End of State Handling ################
+
+
+################ Fold Handling ################
+
+# Uncomment to enable folding on "{" and "}"
+
+fold "{" SSL_OPERATOR +
+fold "}" SSL_OPERATOR -
+
+################ End of Fold Handling ################
