@@ -341,15 +341,7 @@ class DBuffer(UDLBuffer):
     #   variables, classes, etc.): codeintel2.citadel.CitadelBuffer
     # - Otherwise: codeintel2.buffer.Buffer
     lang = lang
-
-    # Uncomment and assign the appropriate languages - these are used to
-    # determine which language controls the completions for a given UDL family.
-    #m_lang = "HTML"
-    #m_lang = "XML"
-    #css_lang = "CSS"
-    #csl_lang = "JavaScript"
     ssl_lang = "D"
-    #tpl_lang = "D"
 
     cb_show_if_empty = True
 
@@ -391,5 +383,5 @@ def register(mgr):
         cile_driver_class=DCILEDriver,
         # Dev Note: set to false if this language does not support
         # autocomplete/calltips.
-        is_cpln_lang=False) # TODO
+        is_cpln_lang=True)
 

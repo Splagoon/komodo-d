@@ -78,7 +78,15 @@ state IN_SSL_DEFAULT:
 '/*' : paint(upto, SSL_DEFAULT), => IN_SSL_COMMENT_C_BLOCK
 
 # D-style nested comments
-'/+' : paint(upto, SSL_DEFAULT), => IN_SSL_COMMENT_D_NESTED
+state IN_SSL_COMMENT_D_NESTED:
+'/+' : paint(upto, SSL_COMMENTBLOCK), spush_check(IN_SSL_COMMENT_D_NESTED), => IN_SSL_COMMENT_D_NESTED
+
+state IN_SSL_DEFAULT:
+'/+' : paint(upto, SSL_DEFAULT), spush_check(IN_SSL_DEFAULT), => IN_SSL_COMMENT_D_NESTED
+
+# ----------- Entering Inline ASM ---------- #
+
+"asm" : paint(upto, SSL_DEFAULT), paint(include, SSL_WORD), => IN_SSL_INLINE_ASM
 
 # ----------- Entering Whitespace ---------- #
 
@@ -116,8 +124,8 @@ state IN_SSL_COMMENT_TO_EOL:
 state IN_SSL_COMMENT_C_BLOCK: 
 '*/' : paint(include, SSL_COMMENTBLOCK), => IN_SSL_DEFAULT  # back to default state
 
-state IN_SSL_COMMENT_D_NESTED: # TODO: support actual nesting
-'+/' : paint(include, SSL_COMMENTBLOCK), => IN_SSL_DEFAULT  # back to default state
+state IN_SSL_COMMENT_D_NESTED:
+'+/' : paint(include, SSL_COMMENTBLOCK), spop_check, => IN_SSL_COMMENT_D_NESTED  # remain a comment if there are still open nested comments
 
 ################ In Strings - determines how we exit a string ################
 
@@ -135,14 +143,23 @@ state IN_SSL_SSTRING:
 state IN_SSL_XSTRING:
 '`' : paint(include, SSL_STRING), => IN_SSL_DEFAULT  # back to default state
 
+################ In Inline ASM ################
+# TODO: Nested {} in ASM?
+state IN_SSL_INLINE_ASM:
+'}' : paint(include, SSL_DEFAULT), => IN_SSL_DEFAULT
+
 ################ End of State Handling ################
 
 
 ################ Fold Handling ################
 
-# Uncomment to enable folding on "{" and "}"
-
 fold "{" SSL_OPERATOR +
 fold "}" SSL_OPERATOR -
+
+fold "/*" SSL_OPERATOR +
+fold "*/" SSL_OPERATOR -
+
+fold "/+" SSL_OPERATOR +
+fold "+/" SSL_OPERATOR -
 
 ################ End of Fold Handling ################

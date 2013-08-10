@@ -91,7 +91,7 @@ def scan_buf(buf, mtime=None, lang="D"):
     # analyze. For example:
     # - A token stream of the content is available via:
     #       buf.accessor.gen_tokens()
-    #   Use the "codeintel html -b <example-D-file>" command as
+    #   Use the "komodo" command as
     #   a debugging tool.
     # - "buf.accessor.text" is the whole content of the file. If you have
     #   a separate tokenizer/scanner tool for D content, you may
